@@ -3,6 +3,7 @@ package com.android.contacts
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ContentUris
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -11,10 +12,10 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.ContactsContract
 import android.provider.ContactsContract.CommonDataKinds.Phone
+import android.provider.Settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.core.content.ContextCompat.checkSelfPermission
 import androidx.databinding.DataBindingUtil
 import androidx.databinding.ViewDataBinding
@@ -52,10 +53,14 @@ class ContactsFragment : Fragment() {
             delay(5000)
 
             val contact = viewModel.getTransferContact("+56974980000")
-            binding.textNameContac.text = contact?.name
-            binding.imageView.setImageBitmap(contact?.image)
-
+            contact?.let {
+                binding.transfersContactName.visibility = View.VISIBLE
+                binding.textNameContac.text = contact?.name
+                binding.imageView.setImageBitmap(contact?.image)
+            }
         }
+
+
     }
 
     override fun onCreateView(
@@ -65,15 +70,34 @@ class ContactsFragment : Fragment() {
     ): View? {
         val view = inflater.inflate(R.layout.contact_list_fragment, container, false)
         binding = DataBindingUtil.bind<ViewDataBinding>(view) as ContactListFragmentBinding
+        binding.rvContacts.visibility = View.VISIBLE
 
+        binding.buttonOpenConfiguration.setOnClickListener {
+
+            openConfiguration()
+
+        }
         return view
     }
+
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
         validatePermission()
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && checkSelfPermission(
+                requireContext(),
+                Manifest.permission.READ_CONTACTS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+
+        } else {
+            getAllContacts()
+        }
+    }
 
     private fun validatePermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && checkSelfPermission(
@@ -91,6 +115,9 @@ class ContactsFragment : Fragment() {
 
 
     private fun getAllContacts() {
+        binding.rvContacts.visibility = View.VISIBLE
+        binding.contraintError.visibility = View.GONE
+
         val contactList: MutableList<ContactInfo> = ArrayList()
 
         val contentUri: Uri = Uri.withAppendedPath(
@@ -113,7 +140,7 @@ class ContactsFragment : Fragment() {
                 val name =
                     cursor.getString(cursor.getColumnIndex(DISPLAY_NAME))
 
-                val number = retrieveContactNumber(id).replace(" ","")
+                val number = retrieveContactNumber(id).replace(" ", "")
                 val image = retrieveContactPhoto(id)
 
                 contactList.add(ContactInfo(image, name, number))
@@ -172,17 +199,24 @@ class ContactsFragment : Fragment() {
 
         if (requestCode == PERMISSIONS_REQUEST_READ_CONTACTS) {
             if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-
                 getAllContacts()
             } else {
-                Toast.makeText(
-                    requireContext(),
-                    "Until you grant the permission, we cannot display the names",
-                    Toast.LENGTH_SHORT
-                ).show()
+                binding.contraintError.visibility = View.VISIBLE
+                binding.rvContacts.visibility = View.GONE
             }
         }
     }
+
+
+    private fun openConfiguration() {
+        val intent = Intent()
+        intent.action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+        intent.addCategory(Intent.CATEGORY_DEFAULT)
+        intent.data = Uri.parse("package:" + requireContext().packageName)
+        requireActivity().startActivity(intent)
+    }
+
+
 
 
     companion object {
